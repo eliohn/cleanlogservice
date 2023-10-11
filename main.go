@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/kardianos/service"
 	"github.com/spf13/viper"
+	"gopkg.in/natefinch/lumberjack.v2"
 	"log"
 	"os"
 	"path/filepath"
@@ -98,20 +99,25 @@ func getCurrentAbPathByExecutable() string {
 func main() {
 	sArgs := fmt.Sprint(os.Args)
 
-	// 打开日志文件
-	file, err := os.OpenFile(getCurrentAbPathByExecutable()+"/logfile.txt", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer file.Close()
-
 	// 创建一个新的程序实例
 	prg := &program{
-		exit:   make(chan struct{}),
-		logger: log.New(file, "", log.LstdFlags),
+		exit: make(chan struct{}),
 	}
+
+	// 打开日志文件
+	logFileName := time.Now().Format("2006-01-02") + ".txt"
+	logFilePath := filepath.Join(getCurrentAbPathByExecutable(), "logs", logFileName)
+	logFile := &lumberjack.Logger{
+		Filename:   logFilePath,
+		MaxSize:    10, // 每个日志文件最大10MB
+		MaxBackups: 3,  // 最多保留3个旧日志文件
+		MaxAge:     30, // 保留最近30天的日志文件
+		Compress:   true,
+	}
+	prg.logger = log.New(logFile, "", log.LstdFlags)
 	prg.logger.Printf("开始执行")
 	prg.logger.Printf("Args:" + sArgs)
+
 	// 创建一个新的服务
 	svcConfig := &service.Config{
 		Name:        "A Lebang Clean Log",
