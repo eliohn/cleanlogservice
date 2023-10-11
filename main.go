@@ -26,6 +26,7 @@ type program struct {
 
 func (p *program) Start(s service.Service) error {
 	p.logger.Printf("Service started")
+	go p.cleanDirectories()
 	go p.run()
 	return nil
 }
@@ -161,21 +162,39 @@ func main() {
 }
 
 func (p *program) cleanDirectories() {
-	now := time.Now()
+	//now := time.Now()
+	successCount := 0
+	failureCount := 0
+	threshold := time.Now().AddDate(0, 0, -p.config.Days).Unix()
 	//threshold := time.Now().AddDate(0, 0, -p.config.Days).Unix()
 	for _, dir := range p.config.Directories {
-		info, err := os.Stat(dir)
+		files, err := os.ReadDir(dir)
 		if err != nil {
-			p.logger.Printf("Failed to get file info for directory %s: %s", dir, err)
 			continue
 		}
-		if now.Sub(info.ModTime()) > time.Duration(p.config.Days)*24*time.Hour {
-			err := os.RemoveAll(dir)
+
+		for _, file := range files {
+			filePath := filepath.Join(dir, file.Name())
+			info, err := file.Info()
 			if err != nil {
-				p.logger.Printf("Failed to remove directory %s: %s", dir, err)
-			} else {
-				p.logger.Printf("Successfully removed directory %s", dir)
+				fmt.Println("获取文件信息失败:", err)
+				failureCount++
+				continue // 获取文件信息失败，跳过当前文件，继续下一个文件
+			}
+
+			if !file.IsDir() && info.ModTime().Unix() < threshold {
+				err := os.Remove(filePath)
+				if err != nil {
+					p.logger.Println("删除文件失败:", err)
+					failureCount++
+					continue // 删除失败，跳过当前文件，继续下一个文件
+				}
+				//fmt.Println("删除文件成功:", filePath)
+				successCount++
 			}
 		}
 	}
+
+	p.logger.Printf("成功删除文件数: %d\n", successCount)
+	p.logger.Printf("删除文件失败数: %d\n", failureCount)
 }
