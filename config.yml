@@ -1,0 +1,6 @@
+
+directories:
+  - D:\dockerpro\zabbix\1
+  - D:\dockerpro\zabbix\2
+time: 0 0 5 * * *
+days: 3
