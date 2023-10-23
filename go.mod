@@ -6,6 +6,7 @@ require (
 	github.com/kardianos/service v1.2.2
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/spf13/viper v1.17.0
+	go.uber.org/zap v1.21.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 

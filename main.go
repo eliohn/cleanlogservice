@@ -20,9 +20,10 @@ type Config struct {
 }
 
 type program struct {
-	exit   chan struct{}
-	logger *log.Logger
-	config Config
+	exit    chan struct{}
+	logger  *log.Logger
+	config  Config
+	logFile *lumberjack.Logger
 }
 
 func (p *program) Start(s service.Service) error {
@@ -33,7 +34,14 @@ func (p *program) Start(s service.Service) error {
 }
 
 func (p *program) run() {
-	c := cron.New()
+	c := cron.New(cron.WithSeconds(),
+		cron.WithChain(cron.SkipIfStillRunning(cron.DefaultLogger)),
+		cron.WithLogger(
+			cron.VerbosePrintfLogger(
+				log.New(p.logFile, "", log.LstdFlags),
+			),
+		),
+	)
 	_, err := c.AddFunc(p.config.Time, p.cleanDirectories)
 	if err != nil {
 		return
@@ -105,23 +113,25 @@ func main() {
 	}
 
 	// 打开日志文件
-	logFileName := time.Now().Format("2006-01-02") + ".txt"
+	logFileName := "cleanlog.log"
 	logFilePath := filepath.Join(getCurrentAbPathByExecutable(), "logs", logFileName)
 	logFile := &lumberjack.Logger{
 		Filename:   logFilePath,
 		MaxSize:    10, // 每个日志文件最大10MB
-		MaxBackups: 3,  // 最多保留3个旧日志文件
-		MaxAge:     30, // 保留最近30天的日志文件
-		Compress:   true,
+		MaxBackups: 5,  // 最多保留3个旧日志文件
+		MaxAge:     10, // 保留最近30天的日志文件
+		Compress:   false,
+		LocalTime:  true,
 	}
+	prg.logFile = logFile
 	prg.logger = log.New(logFile, "", log.LstdFlags)
 	prg.logger.Printf("开始执行")
 	prg.logger.Printf("Args:" + sArgs)
 
 	// 创建一个新的服务
 	svcConfig := &service.Config{
-		Name:        "A Lebang Clean Log",
-		DisplayName: "乐榜日志清理服务",
+		Name:        "A乐榜日志清理服务",
+		DisplayName: "A乐榜日志清理服务",
 		Description: "乐榜日志清理服务，配置在文件同目录下的config.yml"}
 	// 创建一个新的服务对象
 	s, err := service.New(prg, svcConfig)
@@ -163,12 +173,12 @@ func main() {
 		prg.logger.Fatal(err)
 	}
 
-	// 阻塞主线程，保持程序运行
 	select {}
 }
 
 func (p *program) cleanDirectories() {
 	//now := time.Now()
+	p.logger.Printf("---------------   执行一次任务！ ---------------")
 	successCount := 0
 	failureCount := 0
 	threshold := time.Now().AddDate(0, 0, -p.config.Days).Unix()
